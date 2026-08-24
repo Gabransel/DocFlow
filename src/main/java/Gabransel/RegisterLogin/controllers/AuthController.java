@@ -1,5 +1,7 @@
 package Gabransel.RegisterLogin.controllers;
 
+import Gabransel.RegisterLogin.dto.LoginRequestDto;
+import Gabransel.RegisterLogin.dto.LoginResponseDto;
 import Gabransel.RegisterLogin.dto.RegisterRequestDto;
 import Gabransel.RegisterLogin.dto.RegisterResponseDto;
 import Gabransel.RegisterLogin.services.AuthService;
@@ -27,5 +29,11 @@ public class AuthController {
     public ResponseEntity<RegisterResponseDto> insert(@Valid @RequestBody RegisterRequestDto dto) {
         RegisterResponseDto newUser = authService.register(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(newUser);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto dto) {
+        LoginResponseDto response = authService.login(dto);
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 }
