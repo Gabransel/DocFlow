@@ -39,7 +39,9 @@ public class File {
 
     public enum FileType{
         DOC,
-        IMAGE;
+        IMAGE,
+        VIDEO,
+        OTHER;
     }
 
     public File(String name, String s3Key, String fileHash, FileType type, User user) {
