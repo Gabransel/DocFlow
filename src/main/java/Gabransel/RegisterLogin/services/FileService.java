@@ -3,12 +3,13 @@ package Gabransel.RegisterLogin.services;
 import Gabransel.RegisterLogin.dto.FileResponseDto;
 import Gabransel.RegisterLogin.entities.File;
 import Gabransel.RegisterLogin.entities.User;
+import Gabransel.RegisterLogin.exceptions.FileNotFoundException;
 import Gabransel.RegisterLogin.repositories.FileRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 
 @Service
@@ -44,7 +45,7 @@ public class FileService {
             fileBytes = file.getBytes();
         } catch (IOException e) {
 
-            throw new RuntimeException("Falha ao extrair os bytes do arquivo para processamento", e);
+            throw new RuntimeException("Failed to extract file bytes for processing", e);
         }
 
         fileProcessingService.processFile(savedFile.getId(), fileBytes);
@@ -58,8 +59,14 @@ public class FileService {
     );
     }
 
-    public List<FileResponseDto> listMyFiles(User user){
-        List<File> files = fileRepository.findByUserId(user.getId());
+    public List<FileResponseDto> listMyFiles(User user, File.FileType type){
+        List<File> files;
+
+        if (type == null) {
+            files = fileRepository.findByUserId(user.getId());
+        } else {
+            files = fileRepository.findByUserIdAndType(user.getId(), type);
+        }
 
         return files.stream()
                 .map(file -> new FileResponseDto(
@@ -70,6 +77,38 @@ public class FileService {
                         file.getType()
                 ))
                 .toList();
+    }
+
+    public List<FileResponseDto> listAllFiles(){
+        List<File> files = fileRepository.findAll();
+
+        return files.stream()
+                .map(file -> new FileResponseDto(
+                        file.getName(),
+                        file.getStatus(),
+                        file.getId(),
+                        file.getCreatedAt(),
+                        file.getType()
+                ))
+                .toList();
+    }
+
+    public FileResponseDto getFindFileById(Long id, User user) {
+        File file = findFileWithAccessCheck(id, user);
+
+        return new FileResponseDto(
+                        file.getName(),
+                        file.getStatus(),
+                        file.getId(),
+                        file.getCreatedAt(),
+                        file.getType()
+                );
+    }
+
+    public void deleteFileById(Long id, User user) {
+        File file = findFileWithAccessCheck(id, user);
+
+        fileRepository.delete(file);
     }
 
     public File.FileType inferFileType(String contentType){
@@ -86,6 +125,19 @@ public class FileService {
         }
 
         return File.FileType.OTHER;
+    }
+
+    private File findFileWithAccessCheck(Long id, User user){
+        File file = fileRepository.findById(id)
+                .orElseThrow(() -> new FileNotFoundException("Id: " + id));
+
+        boolean isOwner = file.getUser().getId().equals(user.getId());
+        boolean isAdmin = user.getRoles().contains(User.UserRole.ADMIN);
+
+        if (!isOwner && !isAdmin) {
+            throw new AccessDeniedException("You do not have permission to access this file.");
+        }
+        return file;
     }
 }
 

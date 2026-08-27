@@ -1,6 +1,7 @@
 package Gabransel.RegisterLogin.controllers;
 
 import Gabransel.RegisterLogin.dto.FileResponseDto;
+import Gabransel.RegisterLogin.entities.File;
 import Gabransel.RegisterLogin.entities.User;
 import Gabransel.RegisterLogin.security.UserPrincipal;
 import Gabransel.RegisterLogin.services.FileService;
@@ -33,12 +34,37 @@ public class FileController {
     }
 
     @GetMapping
-    public ResponseEntity<List<FileResponseDto>>  list(@AuthenticationPrincipal UserPrincipal userPrincipal){
+    public ResponseEntity<List<FileResponseDto>>  list(@AuthenticationPrincipal UserPrincipal userPrincipal,
+                                                        @RequestParam(required = false) File.FileType type){
 
         User user = userPrincipal.getUser();
-        List<FileResponseDto> files = fileService.listMyFiles(user);
+        List<FileResponseDto> files = fileService.listMyFiles(user, type);
 
         return ResponseEntity.status(HttpStatus.OK).body(files);
 
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<FileResponseDto> find(@PathVariable Long id,
+                                                @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        User user = userPrincipal.getUser();
+        FileResponseDto file = fileService.getFindFileById(id, user);
+
+        return ResponseEntity.status(HttpStatus.OK).body(file);
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<List<FileResponseDto>> listAll() {
+        List<FileResponseDto> files = fileService.listAllFiles();
+        return ResponseEntity.status(HttpStatus.OK).body(files);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        User user = userPrincipal.getUser();
+        fileService.deleteFileById(id, user);
+
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 }
