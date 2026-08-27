@@ -7,13 +7,19 @@ import Gabransel.RegisterLogin.repositories.FileRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.List;
+
 @Service
 public class FileService {
 
     private final FileRepository fileRepository;
+    private final FileProcessingService fileProcessingService;
 
-    public FileService(FileRepository fileRepository) {
+    public FileService(FileRepository fileRepository, FileProcessingService fileProcessingService) {
         this.fileRepository = fileRepository;
+        this.fileProcessingService = fileProcessingService;
     }
 
     public FileResponseDto uploadFile(MultipartFile file, User user) {
@@ -32,6 +38,16 @@ public class FileService {
         );
 
         File savedFile = fileRepository.save(newFile);
+        byte[] fileBytes;
+
+        try {
+            fileBytes = file.getBytes();
+        } catch (IOException e) {
+
+            throw new RuntimeException("Falha ao extrair os bytes do arquivo para processamento", e);
+        }
+
+        fileProcessingService.processFile(savedFile.getId(), fileBytes);
 
     return new FileResponseDto(
             savedFile.getName(),
@@ -40,6 +56,20 @@ public class FileService {
             savedFile.getCreatedAt(),
             savedFile.getType()
     );
+    }
+
+    public List<FileResponseDto> listMyFiles(User user){
+        List<File> files = fileRepository.findByUserId(user.getId());
+
+        return files.stream()
+                .map(file -> new FileResponseDto(
+                        file.getName(),
+                        file.getStatus(),
+                        file.getId(),
+                        file.getCreatedAt(),
+                        file.getType()
+                ))
+                .toList();
     }
 
     public File.FileType inferFileType(String contentType){

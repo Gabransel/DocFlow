@@ -8,11 +8,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping(value = "/file")
@@ -31,5 +30,15 @@ public class FileController {
         FileResponseDto response = fileService.uploadFile(file, user);
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<FileResponseDto>>  list(@AuthenticationPrincipal UserPrincipal userPrincipal){
+
+        User user = userPrincipal.getUser();
+        List<FileResponseDto> files = fileService.listMyFiles(user);
+
+        return ResponseEntity.status(HttpStatus.OK).body(files);
+
     }
 }
