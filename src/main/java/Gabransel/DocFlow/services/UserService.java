@@ -1,25 +1,30 @@
 package Gabransel.DocFlow.services;
 
-
+import Gabransel.DocFlow.dto.ChangePasswordDto;
+import Gabransel.DocFlow.dto.UpdateRoleDto;
 import Gabransel.DocFlow.dto.UpdateUserDto;
 import Gabransel.DocFlow.dto.UserResponseDto;
 import Gabransel.DocFlow.entities.User;
+import Gabransel.DocFlow.exceptions.BusinessException;
+import Gabransel.DocFlow.exceptions.ResourceNotFoundException;
 import Gabransel.DocFlow.repositories.UserRepository;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Pageable;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -31,38 +36,91 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponseDto findById(Long id, User authenticated) {
         User user = findOrThrow(id);
-        checkOwnerOrAdmin(id, authenticated);
-        return UserResponseDto.from(findOrThrow(id));
+        checkOwnerOrAdmin(user, authenticated);
+        return UserResponseDto.from(user);
     }
 
     @Transactional
     public UserResponseDto update(Long id, UpdateUserDto dto, User authenticated) {
-        checkOwnerOrAdmin(id, authenticated);
         User user = findOrThrow(id);
+        checkOwnerOrAdmin(user, authenticated);
 
         if (dto.name() != null) {
             user.setName(dto.name());
         }
         if (dto.email() != null) {
             if (userRepository.existsByEmailAndIdNot(dto.email(), id)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already used");
+                throw new BusinessException("Email already used");
             }
             user.setEmail(dto.email());
         }
+
         return UserResponseDto.from(user);
     }
 
+    @Transactional
+    public void changePassword(Long id, ChangePasswordDto dto, User authenticated) {
+        User user = findOrThrow(id);
+        checkOwner(user, authenticated);
 
-    private void checkOwnerOrAdmin(Long id, User authenticated) {
+        if (!passwordEncoder.matches(dto.currentPassword(), user.getPassword())) {
+            throw new BusinessException("Incorrect current password.");
+        }
+        if (passwordEncoder.matches(dto.newPassword(), user.getPassword())) {
+            throw new BusinessException("The new password must be different from the current one.");
+        }
+
+        user.setPassword(passwordEncoder.encode(dto.newPassword()));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public UserResponseDto updateRole(Long id, UpdateRoleDto dto, User authenticated) {
+        User user = findOrThrow(id);
+
+
+        boolean rebaixandoAdmin = user.getRoles().contains(User.UserRole.ADMIN)
+                && dto.role() != User.UserRole.ADMIN;
+        if (rebaixandoAdmin && userRepository.countByRolesContainingAndActiveTrue(User.UserRole.ADMIN) <= 1) {
+            throw new BusinessException("Cannot demote the last active ADMIN.");
+        }
+
+        user.setRoles(java.util.Set.of(dto.role()));
+        return UserResponseDto.from(user);
+    }
+
+    @Transactional
+    public void deleteUser(Long id, User authenticated) {
+        User user = findOrThrow(id);
+        checkOwnerOrAdmin(user, authenticated);
+
+        if (user.getId().equals(authenticated.getId())) {
+            throw new BusinessException("You cannot delete your own account.");
+        }
+        if (user.getRoles().contains(User.UserRole.ADMIN)
+                && userRepository.countByRolesContainingAndActiveTrue(User.UserRole.ADMIN) <= 1) {
+            throw new BusinessException("Cannot deactivate the last active ADMIN.");
+        }
+
+        user.desatcive();
+    }
+
+    
+    private void checkOwnerOrAdmin(User target, User authenticated) {
         boolean isAdmin = authenticated.getRoles().contains(User.UserRole.ADMIN);
-        if (!isAdmin && !authenticated.getId().equals(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (!isAdmin && !target.getId().equals(authenticated.getId())) {
+            throw new ResourceNotFoundException("User not found: " + target.getId());
+        }
+    }
+
+    private void checkOwner(User target, User authenticated) {
+        if (!target.getId().equals(authenticated.getId())) {
+            throw new AccessDeniedException("Only the account owner can perform this operation.");
         }
     }
 
     private User findOrThrow(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
     }
-    
 }
