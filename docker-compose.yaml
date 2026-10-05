@@ -1,25 +1,23 @@
-  version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    container_name: docflow-postgres
+    environment:
+      POSTGRES_DB: docflow
+      POSTGRES_USER: docflow_user
+      POSTGRES_PASSWORD: docflow_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - docflow-postgres-data:/var/lib/postgresql/data
 
-  services:
-    postgres:
-      image: postgres:16
-      container_name: docflow-postgres
-      environment:
-        POSTGRES_DB: docflow
-        POSTGRES_USER: docflow_user
-        POSTGRES_PASSWORD: docflow_pass
-      ports:
-        - "5432:5432"
-      volumes:
-        - docflow-postgres-data:/var/lib/postgresql/data
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: docflow-localstack
+    environment:
+    - SERVICES=s3
+    ports:
+    - "4566:4566"
 
-    # localstack:
-    #   image: localstack/localstack:latest
-    #   container_name: docflow-localstack
-    #   environment:
-    #     - SERVICES=s3
-    #   ports:
-    #     - "4566:4566"
-
-  volumes:
-    docflow-postgres-data:
+volumes:
+  docflow-postgres-data:
