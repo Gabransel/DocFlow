@@ -90,5 +90,5 @@ public class User {
     public void setActive(boolean active) {
         this.active = active;
     }
-    public void desatcive() { this.active = false; }
+    public void desactive() { this.active = false; }
 }

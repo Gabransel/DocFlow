@@ -1,16 +1,12 @@
 package Gabransel.DocFlow.services;
 
-import Gabransel.DocFlow.dto.ChangePasswordDto;
-import Gabransel.DocFlow.dto.UpdateRoleDto;
-import Gabransel.DocFlow.dto.UpdateUserDto;
-import Gabransel.DocFlow.dto.UserResponseDto;
+import Gabransel.DocFlow.dto.*;
 import Gabransel.DocFlow.entities.User;
 import Gabransel.DocFlow.exceptions.BusinessException;
 import Gabransel.DocFlow.exceptions.ResourceNotFoundException;
 import Gabransel.DocFlow.repositories.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -89,10 +85,10 @@ public class UserService {
         return UserResponseDto.from(user);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public void deleteUser(Long id, User authenticated) {
         User user = findOrThrow(id);
-        checkOwnerOrAdmin(user, authenticated);
 
         if (user.getId().equals(authenticated.getId())) {
             throw new BusinessException("You cannot delete your own account.");
@@ -102,10 +98,25 @@ public class UserService {
             throw new BusinessException("Cannot deactivate the last active ADMIN.");
         }
 
-        user.desatcive();
+        user.desactive();
     }
 
-    
+    @Transactional
+    public void deleteOwnUser(DeleteOwnUserDto dto, User authenticated) {
+        User user = findOrThrow(authenticated.getId());
+
+        if (!passwordEncoder.matches(dto.password(), user.getPassword())) {
+            throw new BusinessException("Incorrect password.");
+        }
+        if (user.getRoles().contains(User.UserRole.ADMIN)
+                && userRepository.countByRolesContainingAndActiveTrue(User.UserRole.ADMIN) <= 1) {
+            throw new BusinessException("Cannot deactivate the last active ADMIN.");
+        }
+
+        user.desactive();
+    }
+
+
     private void checkOwnerOrAdmin(User target, User authenticated) {
         boolean isAdmin = authenticated.getRoles().contains(User.UserRole.ADMIN);
         if (!isAdmin && !target.getId().equals(authenticated.getId())) {
@@ -115,7 +126,7 @@ public class UserService {
 
     private void checkOwner(User target, User authenticated) {
         if (!target.getId().equals(authenticated.getId())) {
-            throw new AccessDeniedException("Only the account owner can perform this operation.");
+            throw new ResourceNotFoundException("User not found: " + target.getId());
         }
     }
 
